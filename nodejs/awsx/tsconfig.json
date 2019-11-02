@@ -43,6 +43,7 @@
         "cloudwatch/widgets_simple.ts",
 
         "codebuild/index.ts",
+        "codebuild/automation.ts",
         "codebuild/metrics.ts",
         "cognito/index.ts",
         "cognito/metrics.ts",
