@@ -501,6 +501,17 @@ export namespace automation {
                     );
                 }
             }
+
+            this.registerOutputs({
+                eventRuleEventSubscriptions: this.eventRuleEventSubscriptions,
+                eventRules: this.eventRules,
+                projects: this.projects,
+                subscriptionLambdaFunction: this.subscriptionLambdaFunction,
+                subscriptionRole: this.subscriptionRole,
+                subscriptionRolePolicy: this.subscriptionRolePolicy,
+                subscriptionRolePolicyAttachment: this.subscriptionRolePolicyAttachment,
+                webhooks: this.webhooks,
+            });
         }
     }
 }
