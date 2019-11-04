@@ -62,6 +62,11 @@ type CompletedPhase = {
     "phase-type": "COMPLETED";
 };
 
+export type ComputeType =
+    | "BUILD_GENERAL1_SMALL"
+    | "BUILD_GENERAL1_MEDIUM"
+    | "BUILD_GENERAL1_LARGE";
+
 export type Phase = NonCompletedPhase | CompletedPhase;
 
 export type PhaseType = Phase["phase-type"];
@@ -147,99 +152,42 @@ export namespace automation {
     };
 
     export type ProjectBuildSubscriptions<
-        TBuildConfig extends BuildConfigurations,
+        TBuildConfigurations extends BuildConfigurations,
         TSubscriptionConfig
     > = {
-        [P in keyof TBuildConfig]: ProjectBuildSubscriptionOptions<
+        [P in keyof TBuildConfigurations]: ProjectBuildSubscriptionOptions<
             TSubscriptionConfig
         >;
     };
 
     export type BuildTypeSubscriptions<
-        TBuildConfig extends BuildConfigurations,
+        TBuildConfigurations extends BuildConfigurations,
         TSubscriptionConfig
     > = {
-        [P in keyof TBuildConfig]: BuildTypeSubscriptionOptions<
+        [P in keyof TBuildConfigurations]: BuildTypeSubscriptionOptions<
             TSubscriptionConfig
         >;
     };
 
-    export type DefaultProjectArgs = {
-        /**
-         * Time in minutes when the build should be aborted.
-         */
-        buildTimeout: pulumi.Input<number>;
-        /**
-         * Instance size to run on. Defaults to "BUILD_GENERAL1_SMALL".
-         */
-        computeType: pulumi.Input<
-            | "BUILD_GENERAL1_SMALL"
-            | "BUILD_GENERAL1_MEDIUM"
-            | "BUILD_GENERAL1_LARGE"
-        >;
-        /**
-         * ARN of the role used by the container running the build.
-         */
-        serviceRoleArn: pulumi.Input<string>;
-    };
-
     export type ProjectArgs<
-        TBuildConfig extends BuildConfigurations,
+        TBuildConfigurations extends BuildConfigurations,
         TSubscriptionConfig
     > = {
         /**
-         * Name prefix for the build configurations (will be appended to).
+         * Name of the project - used to derive the build configuration names.
          */
         name: string;
-        /**
-         * Brief explanation of what the project is for.
-         */
-        description?: pulumi.Input<string>;
-        /**
-         * The HTTPS repository location.
-         */
-        sourceGitHubRepo: pulumi.Input<string>;
-        /**
-         * Time in minutes when the build should be aborted.
-         */
-        buildTimeout?: pulumi.Input<number>;
-        /**
-         * If set to true, enables running the Docker daemon inside a Docker container. Defaults to `false`.
-         */
-        privilegedMode?: pulumi.Input<boolean>;
-        /**
-         * Instance size to run on. Defaults to "BUILD_GENERAL1_SMALL".
-         */
-        computeType?: pulumi.Input<
-            | "BUILD_GENERAL1_SMALL"
-            | "BUILD_GENERAL1_MEDIUM"
-            | "BUILD_GENERAL1_LARGE"
-        >;
-        /**
-         * ARN of the role used by the container running the build.
-         */
-        serviceRoleArn?: pulumi.Input<string>;
-        /**
-         * Environment variables for running the build.
-         */
-        env?: pulumi.Input<
-            pulumi.Input<
-                aws.types.input.codebuild.ProjectEnvironmentEnvironmentVariable
-            >[]
-        >;
         /**
          * When to send alerts for build results
          */
         subscriptions?: Partial<
-            ProjectBuildSubscriptions<TBuildConfig, TSubscriptionConfig>
+            ProjectBuildSubscriptions<TBuildConfigurations, TSubscriptionConfig>
         >;
     };
 
-    export type BuildSetupStrategy<TBuildConfig extends BuildConfigurations> = (
-        defaults: DefaultProjectArgs,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        projectArgs: ProjectArgs<TBuildConfig, any>,
-    ) => TBuildConfig;
+    export type BuildSetupStrategy<TProjectArgs extends ProjectArgs<TBuildConfigurations, TSubscriptionConfig>, TBuildConfigurations extends BuildConfigurations, TSubscriptionConfig = {}> = (
+        projectArgs: TProjectArgs,
+    ) => TBuildConfigurations;
 
     export type SubscriptionEvent = {
         eventRuleEvent: EventRuleEvent;
@@ -261,20 +209,22 @@ export namespace automation {
     };
 
     export type ConfigureBuildsArgs<
-        TBuildConfig extends BuildConfigurations,
+        TProjectArgs extends ProjectArgs<TBuildConfigurations, TSubscriptionConfig>,
+        TBuildConfigurations extends BuildConfigurations,
         TSubscriptionConfig = {}
     > = {
-        buildSetup: BuildSetupStrategy<TBuildConfig>;
+        buildSetup: BuildSetupStrategy<TProjectArgs, TBuildConfigurations, TSubscriptionConfig>;
         subscriptions?: BuildSubscriptionsArgs<
-            TBuildConfig,
+            TBuildConfigurations,
             TSubscriptionConfig
         >;
-        projectDefaults: DefaultProjectArgs;
-        projects: ProjectArgs<TBuildConfig, TSubscriptionConfig>[];
+        projectDefaults: Partial<TProjectArgs>;
+        projects: TProjectArgs[];
     };
 
     export class AutomationServer<
-        TBuildConfig extends BuildConfigurations,
+    TProjectArgs extends ProjectArgs<TBuildConfigurations, TSubscriptionConfig>,
+    TBuildConfigurations extends BuildConfigurations,
         TSubscriptionConfig = {}
     > extends pulumi.ComponentResource {
         projects: aws.codebuild.Project[];
@@ -298,7 +248,7 @@ export namespace automation {
                 subscriptions,
                 projectDefaults,
                 projects,
-            }: ConfigureBuildsArgs<TBuildConfig, TSubscriptionConfig>,
+            }: ConfigureBuildsArgs<TProjectArgs, TBuildConfigurations, TSubscriptionConfig>,
             opts: pulumi.ComponentResourceOptions = {},
         ) {
             super("awsx:x:codebuild:AutomationServer", name, {}, opts);
@@ -311,7 +261,7 @@ export namespace automation {
                           ...project.subscriptions,
                       }
                     : undefined,
-                buildSetups: buildSetup(projectDefaults, project),
+                buildSetups: buildSetup({ ...projectDefaults, ...project }),
             }));
             this.projects = [];
             this.webhooks = [];
